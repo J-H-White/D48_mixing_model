@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 """
 Created on Mon Aug  2 13:31:30 2021
 
 @author: Jacko
 """
 #Import packages that are not Built-in functions
-import numpy as np
+
 import pandas as pd
 from math import e
 
@@ -17,21 +18,25 @@ df= pd.read_excel(r"C:\Users\Jacko\Desktop\Modelling\Clumped Mixing Line feat D4
 
 # convert d18O (VPDB) and d13C (VPDB) data to absolute ratios (Ri)
 
-df_d18O = df.iloc[3:4, 0:3]
-df_d13C = df.iloc[4:5, 0:3]
+df_d18O = df.iloc[3, 0:3]
+df_d13C = df.iloc[4, 0:3]
 
 # Eq. 1
 def R_13(value):
     new_value = (((value/1000)+1)*0.0112372)
     return(new_value)
 
-new_list = []
+R13_list = []
 
-for i in df_d13C:
-    new_value = R_13(i)
-    new_list.append(new_value)
+for i in range(df_d13C):
+    print(i)
 
-    return new_list
+
+for i in range(1, len(df_d13C)):
+    new_value = R_13(df_d13C[i])
+    R13_list.append(new_value)
+
+R13_list
 
 
 # Eq. 2
@@ -144,3 +149,4 @@ for i in df_d13C:
 #def D47mix (D47_SGvsWG_0_mix, ETF_slope, ETF_int):
 #    y = D47_SGvsWG_0_mix*ETF_slope + ETF_int
 #    return y
+
