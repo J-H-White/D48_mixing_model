@@ -23,14 +23,10 @@ df_d13C = df.iloc[4, 0:3]
 
 # Eq. 1
 def R_13(value):
-    new_value = (((value/1000)+1)*0.0112372)
+    new_value = ((value/1000)+1)*0.01118
     return(new_value)
 
 R13_list = []
-
-for i in range(df_d13C):
-    print(i)
-
 
 for i in range(1, len(df_d13C)):
     new_value = R_13(df_d13C[i])
@@ -38,26 +34,57 @@ for i in range(1, len(df_d13C)):
 
 R13_list
 
-
 # Eq. 2
-#def R18(d18O_VSMOW):
-#    y = float(((d18O_VSMOW/1000)+1)*0.0020052)
-#    return(y)
+def R18(value):
+    new_value = ((value/1000)+1)*0.0020052
+    return(new_value)
+
+R18_list = []
+
+for i in range(1, len(df_d18O)):
+    new_value = R18(df_d18O[i])
+    R18_list.append(new_value)
+
+R18_list
 
 # Eq. 3
-#def R17():
-#    y = float(((R18/0.0020052)**0.5164)*0.0003799)
-#    return(y)
+def R17(value):
+    new_value = ((value/0.0020052)**0.5164)*0.0003799
+    return(new_value)
+
+R17_list = []
+
+for i in range(len(R18_list)):
+    new_value = R17(R18_list[i])
+    R17_list.append(new_value)
+
+R17_list
 
 # Eq. 4
-#def 12C(R13):
-#    y = float(1/(1+R13))
-#    return y
+def C12(value):
+    new_value = 1/(1+value)
+    return new_value
+
+C12_list = []
+
+for i in range(len(R13_list)):
+    new_value = C12(R13_list[i])
+    C12_list.append(new_value)
+
+C12_list
 
 # Eq. 5
-#def 13C(R13):
-#    y = 12C(R13)*R13
-#    return y
+def C13(value):
+    new_value = C12(value)*value
+    return new_value
+
+C13_list = []
+
+for i in range(len(R13_list)):
+    new_value = C13(R13_list[i])
+    C13_list.append(new_value)
+    
+C13_list
 
 # Eq. 6
 #def 16O(R17, R18):
@@ -149,4 +176,3 @@ R13_list
 #def D47mix (D47_SGvsWG_0_mix, ETF_slope, ETF_int):
 #    y = D47_SGvsWG_0_mix*ETF_slope + ETF_int
 #    return y
-
