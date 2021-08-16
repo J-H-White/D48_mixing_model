@@ -13,7 +13,7 @@ from math import e
 #In the case of an Excel spreadsheet file, we are interested in a particular
 #sheet (D48) and we are not interested in the indexing on the left.
 
-df= pd.read_excel(r"C:\Users\Jacko\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"\
+df= pd.read_excel(r"C:\Users\s4655097\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"
                   ,sheet_name="D48", index_col=False)
 
 # convert d18O (VPDB) and d13C (VPDB) data to absolute ratios (Ri)
@@ -22,74 +22,82 @@ df_d18O = df.iloc[3, 0:3]
 df_d13C = df.iloc[4, 0:3]
 
 # Eq. 1
-def R_13(value):
-    new_value = ((value/1000)+1)*0.01118
-    return(new_value)
+def R13(d13C_value):
+    R13_value = ((d13C_value/1000)+1)*0.01118
+    return(R13_value)
 
 R13_list = []
 
 for i in range(1, len(df_d13C)):
-    new_value = R_13(df_d13C[i])
-    R13_list.append(new_value)
+    R13_value = R13(df_d13C[i])
+    R13_list.append(R13_value)
 
-R13_list
+R13_tuple = tuple(R13_list)
 
 # Eq. 2
-def R18(value):
-    new_value = ((value/1000)+1)*0.0020052
-    return(new_value)
+def R18(d18O_value):
+    R18_value = ((d18O_value/1000)+1)*0.0020052
+    return(R18_value)
 
 R18_list = []
 
 for i in range(1, len(df_d18O)):
-    new_value = R18(df_d18O[i])
-    R18_list.append(new_value)
+    R18O_value = R18(df_d18O[i])
+    R18_list.append(R18O_value)
 
-R18_list
+R18_tuple = tuple(R18_list)
 
 # Eq. 3
-def R17(value):
-    new_value = ((value/0.0020052)**0.5164)*0.0003799
-    return(new_value)
+def R17(R18_value):
+    R17_value = ((R18_value/0.0020052)**0.5164)*0.0003799
+    return(R17_value)
 
 R17_list = []
 
 for i in range(len(R18_list)):
-    new_value = R17(R18_list[i])
-    R17_list.append(new_value)
+    R17_value = R17(R18_list[i])
+    R17_list.append(R17_value)
 
-R17_list
+R17_tuple = tuple(R17_list)
 
 # Eq. 4
-def C12(value):
-    new_value = 1/(1+value)
-    return new_value
+def C12(R13_value):
+    C12_value = 1/(1+R13_value)
+    return C12_value
 
 C12_list = []
 
 for i in range(len(R13_list)):
-    new_value = C12(R13_list[i])
-    C12_list.append(new_value)
+    C12_value = C12(R13_list[i])
+    C12_list.append(C12_value)
 
-C12_list
+C12_tuple = tuple(C12_list)
 
 # Eq. 5
-def C13(value):
-    new_value = C12(value)*value
-    return new_value
+def C13(R13_value):
+    C13_value = C12(R13_value)*R13_value
+    return C13_value
 
 C13_list = []
 
 for i in range(len(R13_list)):
-    new_value = C13(R13_list[i])
-    C13_list.append(new_value)
+    C13_value = C13(R13_list[i])
+    C13_list.append(C13_value)
     
-C13_list
+C13_tuple = tuple(C13_list)
 
 # Eq. 6
-#def 16O(R17, R18):
-#    y = 1/(1+R17+R18)
-#    return y
+def O16(R17_value, R18_value):
+    O16_value = 1/(1+R17_value+R18_value)
+    return O16_value
+
+O16_list = []
+
+for i in range(min([len(R17_tuple), len(R18_tuple)])):
+    O16_value = O16(R17_tuple[i], R18_tuple[i])
+    O16_list.append(O16_value)
+
+O16_tuple = O16_list
 
 # Eq. 7
 #def 17O(16O):
