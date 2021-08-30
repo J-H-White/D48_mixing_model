@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Aug 30 13:31:30 2021
+Created on Mon Aug  2 13:31:30 2021
 
 @author: Jacko
 """
@@ -13,7 +13,7 @@ from math import e
 #In the case of an Excel spreadsheet file, we are interested in a particular
 #sheet (D48) and we are not interested in the indexing on the left.
 
-df= pd.read_excel(r"C:\Users\s4655097\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"
+df= pd.read_excel(r"C:\Users\Jacko\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"
                   ,sheet_name="D48", index_col=False)
 
 # convert d18O (VPDB) and d13C (VPDB) data to absolute ratios (Ri)
@@ -97,32 +97,47 @@ for i in range(min([len(R17_tuple), len(R18_tuple)])):
     O16_value = O16(R17_tuple[i], R18_tuple[i])
     O16_list.append(O16_value)
 
-O16_tuple = O16_list
+O16_tuple = tuple(O16_list)
 
-# Eq. 7
-#def 17O(16O):
-#    y = 16O*R17()
-#    return y
+O17_list = []
 
-# Eq. 8
-#def 18O(16O):
-#    y = 16O*R18()
-#    return y
+for i in range(min([len(O16_tuple), len(R17_tuple)])):
+    O17_value = O16_tuple[i]*R17_tuple[i]
+    O17_list.append(O17_value)
 
-# Eq. 9
-#def R45*(12C, 13C, 16O, 17O):
-#    y = (13C*16O**2+2*12C*16O*17O)/(12C*16O**2)
-#    return y
+O17_tuple = tuple(O17_list)
 
-# Eq. 10
-#def R46*(12C, 13C, 16O, 17O, 18O):
-#    y = (2*12C*18O+12C*17O**2+2*13C*16O*17O)/#(12C*16O**2)
-#    return y
+O18_list = []
 
-# Eq. 11
-#def R47*(12C, 13C, 16O, 17O, 18O):
-#    y = (2*13C*18O+12C*17O**2+2*13C*17O*18O)/#(12C*16O**2)
-#    return y
+for i in range(min([len(O16_tuple), len(R18_tuple)])):
+    O18_value = O16_tuple[i]*R18_tuple[i]
+    O18_list.append(O18_value)
+
+O18_tuple = tuple(O18_list)
+
+R45_sto_list = []
+
+for i in range(min([len(C12_tuple), len(C13_tuple), len(O16_tuple), len(O17_tuple)])):
+    R45_sto_value = (C13_tuple[i]*O16_tuple[i]**2+2*C12_tuple[i]*O16_tuple[i]*O17_tuple[i])/(C12_tuple[i]*O16_tuple[i]**2)
+    R45_sto_list.append(R45_sto_value)
+
+R45_sto_tuple = tuple(R45_sto_list)
+
+R46_sto_list = []
+
+for i in range(min([len(C12_tuple), len(C13_tuple), len(O16_tuple), len(O17_tuple), len(O18_tuple)])):
+    R46_sto_value = (2*C12_tuple[i]*O16_tuple[i]*O18_tuple[i] + C12_tuple[i]*O17_tuple[i]**2 + 2*C13_tuple[i]*O16_tuple[i]*O17_tuple[i])/(C12_tuple[i]*O16_tuple[i]**2)
+    R46_sto_list.append(R46_sto_value)
+
+R46_sto_tuple = tuple(R46_sto_list)
+
+R47_sto_list = []
+
+for i in range(min([len(C12_tuple), len(C13_tuple), len(O16_tuple), len(O17_tuple), len(O18_tuple)])):
+    R47_sto_value = (2*C13_tuple[i]*O16_tuple[i]*O18_tuple[i] + C13_tuple[i]*O17_tuple[i]**2 + 2*C12_tuple[i]*O17_tuple[i]*O18_tuple[i])/(C12_tuple[i]*O16_tuple[i]**2)
+    R47_sto_list.append(R47_sto_value)
+
+R47_sto_tuple = tuple(R47_sto_list)
 
 # Eq. 12
 #def d45 (R45*, R45*_WG):
