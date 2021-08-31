@@ -3,7 +3,7 @@
 Created on Mon Aug  2 13:31:30 2021
 
 @author: Jacko
-"""
+This model describes the non-linear mixing effects on mass-47 CO2 clumped isotope data. This code is written based on Defliese & Lohmann (2015)'s work. Here, we try to extend this model to the non-linear mixing effects on mass-48 CO2 clumped isotope data."""
 #Import packages that are not Built-in functions
 
 import pandas as pd
@@ -13,7 +13,7 @@ from math import e
 #In the case of an Excel spreadsheet file, we are interested in a particular
 #sheet (D48) and we are not interested in the indexing on the left.
 
-df= pd.read_excel(r"C:\Users\Jacko\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"
+df= pd.read_excel(r"C:\Users\s4655097\Desktop\Modelling\Clumped Mixing Line feat D48.xlsx"
                   ,sheet_name="D48", index_col=False)
 
 # convert d18O (VPDB) and d13C (VPDB) data to absolute ratios (Ri)
@@ -21,10 +21,14 @@ df= pd.read_excel(r"C:\Users\Jacko\Desktop\Modelling\Clumped Mixing Line feat D4
 df_d18O = df.iloc[3, 0:3]
 df_d13C = df.iloc[4, 0:3]
 
+""" Here we define functions which convenrt the d13C and d18O data into R13, R18 and R17 data. The equations reference number correspond to the same as in Defliese & Lohmann (2015) (Eq.). """
 # Eq. 1
+
 def R13(d13C_value):
     R13_value = ((d13C_value/1000)+1)*0.01118
     return(R13_value)
+
+""" Here we create a loop which iterates over the elements in the a DataFrame (df). For this we also have to create an empty list where the tabulated elements can be stored. Once the loop has finished and the list has appended all elements, this list is converted into a tuple, to have a inmutable copy."""
 
 R13_list = []
 
@@ -32,6 +36,7 @@ for i in range(1, len(df_d13C)):
     R13_value = R13(df_d13C[i])
     R13_list.append(R13_value)
 
+#
 R13_tuple = tuple(R13_list)
 
 # Eq. 2
@@ -60,47 +65,41 @@ for i in range(len(R18_list)):
 
 R17_tuple = tuple(R17_list)
 
+""" Based on the R13, R18 and R17 data, the concentrations for each isotopes can be estimated. That is 12C, 13C, 16O, 17O, and 18O. The values and letters had to be switched because 12C, for exmaple, can produce a syntax error. """
+
 # Eq. 4
-def C12(R13_value):
-    C12_value = 1/(1+R13_value)
-    return C12_value
 
 C12_list = []
 
-for i in range(len(R13_list)):
-    C12_value = C12(R13_list[i])
+for i in range(len(R13_tuple)):
+    C12_value = 1/(1+R13_tuple[i])
     C12_list.append(C12_value)
 
 C12_tuple = tuple(C12_list)
 
 # Eq. 5
-def C13(R13_value):
-    C13_value = C12(R13_value)*R13_value
-    return C13_value
 
 C13_list = []
 
-for i in range(len(R13_list)):
-    C13_value = C13(R13_list[i])
+for i in range(len(R13_tuple)):
+    C13_value = C12_tuple[i]*R13_tuple[i]
     C13_list.append(C13_value)
     
 C13_tuple = tuple(C13_list)
 
 # Eq. 6
-def O16(R17_value, R18_value):
-    O16_value = 1/(1+R17_value+R18_value)
-    return O16_value
 
 O16_list = []
 
 for i in range(min([len(R17_tuple), len(R18_tuple)])):
-    O16_value = O16(R17_tuple[i], R18_tuple[i])
+    O16_value = 1/(1+R17_tuple[i]+R18_tuple[i])
     O16_list.append(O16_value)
 
 O16_tuple = tuple(O16_list)
 
 O17_list = []
 
+#Eq. 7 However, we are not required ro
 for i in range(min([len(O16_tuple), len(R17_tuple)])):
     O17_value = O16_tuple[i]*R17_tuple[i]
     O17_list.append(O17_value)
@@ -114,6 +113,8 @@ for i in range(min([len(O16_tuple), len(R18_tuple)])):
     O18_list.append(O18_value)
 
 O18_tuple = tuple(O18_list)
+
+""" In this section the stochastic distributions are calculated for R45, R46 and R47, based on the concentration data from the previous section. """
 
 R45_sto_list = []
 
