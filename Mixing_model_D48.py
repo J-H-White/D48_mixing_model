@@ -1,8 +1,8 @@
- # -*- coding: utf-8 -*-
+  # -*- coding: utf-8 -*-
 """
 Created on Mon Aug  2 13:31:30 2021
 
-@author: Jacko
+@author: Jackson White
 This model describes the non-linear mixing effects on mass-47 CO2 clumped isotope data. This code is written based on Defliese & Lohmann (2015)'s work. Here, we try to extend this model to the non-linear mixing effects on mass-48 CO2 clumped isotope data. To make reading easier, we recommend wrapping the code lines in Spyder by going to Preferences -> Editor -> select the Display tab -> tick wrap lines.
 
 References
@@ -51,7 +51,10 @@ acid_frac_alpha = e**((22.434/((273.15 + T)**2))-0.0002524)
 acid_frac_offset = (1000/acid_frac_alpha)-1000
 
 def mixture (C1, C2, contribution_1):
+    
     """ mixture defines the weighted average given the inputs. """
+    
+    # Eq. 17
     mixture_value = (C1*contribution_1) + (C2*(1-contribution_1))
     return mixture_value
 
@@ -200,45 +203,67 @@ d46_component_1 = ((R46_sto_list[2]/R46_sto_list[0])-1)*1000
 
 d46_component_2 = ((R46_sto_list[3]/R46_sto_list[0])-1)*1000
 
-# Eq. 14
-#def D47_RF (D47EndMemberValue, acid_frac_alpha):
-#    y = D47EndMemberValue - acid_frac_alpha
-#    return y
-
-# Eq. 15
-#def D47_SGvsWG_0 (D47_RF, ETF_int, ETF_slope):
-#    y = (D47_RF - ETF_int)/ETF_slope
-#    return y
-
-def remove_acidfrac_tf (componentD47_value):
-    #Eq. 14
-    removed_acidfrac_offset = componentD47_value - acid_frac_offset
-    #Eq. 15
-    removed_transferfunction = (removed_acidfrac_offset - transfer_function_intercept_D47)/transfer_function_slope_D47
+def remove_acidfrac_tf (componentD47_value, remove_acidfrac = True):
+    
+    """ This function will correct the input value for the acid fractionation offset and empirical transfer function. By default remove_acidfrac = True when there is a 18O/16O fractionation, hence when using the function for D47 calculations. However, remove_acidfrac = False, when calculating D48 or D49 since the values measured do not fractionate since they have to loose the 16O atom. """
+    
+    if remove_acidfrac == True:
+        #Eq. 14
+        removed_acidfrac_offset = componentD47_value - acid_frac_offset
+        #Eq. 15
+        removed_transferfunction = (removed_acidfrac_offset - transfer_function_intercept_D47)/transfer_function_slope_D47
+        
+    elif remove_acidfrac == False:
+        #Eq. 15
+        removed_transferfunction = (componentD47_value - transfer_function_intercept_D48)/transfer_function_slope_D48
+        
     return removed_transferfunction
+    
 
-removed_acid_tf_c1 = remove_acidfrac_tf(component_1_D47)
-removed_acid_tf_c2 = remove_acidfrac_tf(component_2_D47)
+# D45 and D46 represent anomalies and must be zero
+D45_component_1 = ((((d45_component_1/1000)+1)*R45_sto_list[0]/R45_sto_list[2])-1)*1000
+D45_component_2 = ((((d45_component_2/1000)+1)*R45_sto_list[0]/R45_sto_list[3])-1)*1000
 
-# Eq. 16
-#def d47 (D47_SGvsWG_0, R47, R47*, R47*_WG, EGL_slope):
-#    y = ((D47_SGvsWG_0() - 1000)*R47() - 1000*R47*_WG)/#(R47*_WG - EGL_slope*R47*)
-#    return y
+D46_component_1 = ((((d46_component_1/1000)+1)*R46_sto_list[0]/R46_sto_list[2])-1)*1000
+D46_component_2 = ((((d46_component_2/1000)+1)*R46_sto_list[0]/R46_sto_list[3])-1)*1000
 
-# Eq. 17
-#def dmix (x, d):
-#    y = sum(x*d)
-#    return y
+def d4i(c, c_R4i, ref_R4i, heated_gas_line_slope = 47):
+    
+    """ This function calculates d4i (d47 or d48) from the component c which has had an acid correction and transfer function correction performed on previously. It also builds on the R47 and R48 stochastic values for a given component, c_R4i (R47_sto_list[2] or R48_sto_list[2]; and R47_sto_list[3] or R48_sto_list[3]) with its respective reference gas value, ref_R4i (R47_sto_list[0] or R48_sto_list[0]). The heated_gas_line_slope_D47 is a default value defined by the user at the begining of the script. However, when the heated_gas_line_slope = 48, the heated_gas_line_slope_D48 value will be used instead, granted the the approapriate D48 inputs have been specified. """
+    
+    if heated_gas_line_slope == 47:
+       # Eq. 16
+       numerator = ((c+1000)*c_R4i/(1000*ref_R4i))-1
+       denominator = (1/1000)-(heated_gas_line_slope_D47*c_R4i/(1000*ref_R4i))
+    
+    elif heated_gas_line_slope == 48:
+       numerator = ((c+1000)*c_R4i/(1000*ref_R4i))-1
+       denominator = (1/1000)-(heated_gas_line_slope_D48*c_R4i/(1000*ref_R4i))
+       
+    return numerator/denominator 
+
+d47_component_1 = d4i(remove_acidfrac_tf(component_1_D47), R47_sto_list[2], R47_sto_list[0])
+d47_component_2 = d4i(remove_acidfrac_tf(component_2_D47), R47_sto_list[3], R47_sto_list[0])
+
+d48_component_1 = d4i(remove_acidfrac_tf(component_1_D48, remove_acidfrac = False), R48_sto_list[2], R48_sto_list[0], heated_gas_line_slope=48) 
+d48_component_2 = d4i(remove_acidfrac_tf(component_2_D48, remove_acidfrac = False), R48_sto_list[3], R48_sto_list[0], heated_gas_line_slope=48) 
+
+d45_mixture = mixture(d45_component_1, d45_component_2, component_1_contribution)
+d46_mixture = mixture(d46_component_1, d46_component_2, component_1_contribution)
+d47_mixture = mixture(d47_component_1, d47_component_2, component_1_contribution)
+d48_mixture = mixture(d48_component_1, d48_component_2, component_1_contribution)
 
 # Eq. 18
-#def R (d, R_WG):
-#    y = ((d/1000) + 1)*R_WG
-#    return y
+R45_mixture = ((d45_mixture/1000)+1)*R45_sto_list[0]
+R46_mixture = ((d46_mixture/1000)+1)*R46_sto_list[0]
+R47_mixture = ((d47_mixture/1000)+1)*R47_sto_list[0]
+R48_mixture = ((d48_mixture/1000)+1)*R48_sto_list[0]
 
 # Eq. 19
-#def D47_SGvsWG_mix (R45, R45*, R46, R46*, R47, R47*):
-#    y = ((R47/R47* - 1) - (R46/R46* - 1) - (R45/R45* - 1))*1000
-#    return y
+D45_mixing = ((R45_mixture/R45_sto_list[1])-1)*1000
+D46_mixing = ((R46_mixture/R46_sto_list[1])-1)*1000
+D47_mixing = ((R47_mixture/R47_sto_list[1])-1)*1000
+D48_mixing = ((R48_mixture/R48_sto_list[1])-1)*1000
 
 # Eq. 20
 #def D47_SGvsWG_0_mix (D47_SGvsWG_mix, d47_mix, EGL_slope):
