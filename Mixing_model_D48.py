@@ -16,33 +16,7 @@ from math import e
 
 """ In this section, the input the values for the isotope geochemistry data for the two components (component_1_D47, component_1_D48, component_1_d18O_VPDB, component_1_d13C_VPDB, component_1_contribution, component_2_D47, component_2_D48, component_2_d18O_VPDB, component_2_d13C_VPDB); transfer function slopes and intercepts (empirical_transfer_function_slope_D47, empirical_transfer_function_intercept_D47, empirical_transfer_function_slope_D48, empirical_transfer_function_intercept_D48); heated gas line slopes (heated_gas_line_slope_D47 and heated_gas_line_slope_D48); working gas delta values (working_gas_d13C_VPDB and working_gas_d18O_VSMOW); and the acid reaction temperature (T). """  
 
-component_1_D47 = 0.214
-component_1_D48 = 0.138
-component_1_d18O_VPDB = -2.19
-component_1_d13C_VPDB = 2.02
-component_1_contribution = 0.5
-
-component_2_D47 = 0.215
-component_2_D48 = 0.138
-component_2_d18O_VPDB = -18.69
-component_2_d13C_VPDB = -10.17
-
-# Note there is no component 2 contribution input, this is because this model is a mixture between two components. Therefore, the component 2 contribution is the compliment of the component 1 contribution (1 - component_1_contribution). Contributions have values between 0 and 1.
-
-T = 25
-
-empirical_transfer_function_slope_D47 = 1.0391
-empirical_transfer_function_intercept_D47 = 0.9499
-empirical_transfer_function_slope_D48 = 1.0005
-empirical_transfer_function_intercept_D48 = 0.3367
-
-heated_gas_line_slope_D47 = 0.0274
-heated_gas_line_slope_D48 = 0
-
-reference_gas_d13C_VPDB = -3.700
-reference_gas_d18O_VSMOW = 34.990
-
-def master_function():
+def mixing_model(component_1_D47, component_1_D48, component_1_d18O_VPDB, component_1_d13C_VPDB, component_1_contribution, component_2_D47, component_2_D48, component_2_d18O_VPDB, component_2_d13C_VPDB, T, empirical_transfer_function_slope_D47, empirical_transfer_function_intercept_D47, empirical_transfer_function_slope_D48, empirical_transfer_function_intercept_D48, heated_gas_line_slope_D47, heated_gas_line_slope_D48, reference_gas_d13C_VPDB, reference_gas_d18O_VSMOW):
     """ d18O_alpha_value is defnied as the oxygen fractionation from the conversion from CaCO3 to CO2 at a temperature T. """
     d18O_alpha = 1.00397+((5.25*10**2)/(273.15+T)**2)
 
@@ -65,16 +39,6 @@ def master_function():
     # d18O mixture value from component 1 and component 2
     mixture_d18O_VPDB = mixture(component_1_d18O_VPDB, component_2_d18O_VPDB, component_1_contribution)
 
-    """ What the hell is going on here Will? """
-
-    # R18 from VSMOW scale to VPDB calcite ((30.92/1000 + 1) * 0.0020052) and scaled to VPDB CO2 by multiplying by a fractionation factor of 1.01025
-    
-    #VPDB_calcite_R18 = ((30.92/1000+1)*0.0020052)*1.01025
-
-    # R17 for VSMOW to VPDB calcite
-
-    #VPDB_calcite_R17 = ((VPDB_calcite_R18/(0.0020052*1.01025)**0.528)*0.00038475
-
     # Convert d18O values from the VPDB scale to VSMOW scale and corrected for CaCO3 to CO2 fractionation (d18O_alpha_value).
     def CO3VPDB_to_CO2VSMOW(d18O_VPDB_value):
         CO3_VSMOW_value = ((d18O_VPDB_value + 29.98)/0.97001)
@@ -88,8 +52,6 @@ def master_function():
     component_2_d18O_CO2VSMOW = CO3VPDB_to_CO2VSMOW(component_2_d18O_VPDB)
 
     """ Lists have been created to perform calculations on the equations will preform calculations on. Python has different data structures of which lists have the property that they can be changed, which is what our intention is by calculating with these equations below. After these calculations are done, the 'keys' list will be merged with the two 'values' lists to create a dictionary. Dictionaries are data structures which have a key, which can be called, and results in a output. """
-
-    keys = ['Reference_gas', 'Composite_gas', 'Component_1', 'Component_2']
 
     values_d13C = [reference_gas_d13C_VPDB, mixture_d13C_VPDB, component_1_d13C_VPDB, component_2_d13C_VPDB]
 
@@ -219,14 +181,6 @@ def master_function():
             removed_empiricaltransferfunction = (componentD47_value - empirical_transfer_function_intercept_D48)/empirical_transfer_function_slope_D48
         
         return removed_empiricaltransferfunction
-    
-
-    # D45 and D46 represent anomalies and must be zero
-    D45_component_1 = ((((d45_component_1/1000)+1)*R45_sto_list[0]/R45_sto_list[2])-1)*1000
-    D45_component_2 = ((((d45_component_2/1000)+1)*R45_sto_list[0]/R45_sto_list[3])-1)*1000
-
-    D46_component_1 = ((((d46_component_1/1000)+1)*R46_sto_list[0]/R46_sto_list[2])-1)*1000
-    D46_component_2 = ((((d46_component_2/1000)+1)*R46_sto_list[0]/R46_sto_list[3])-1)*1000
 
     def d4i(c, c_R4i, ref_R4i, heated_gas_line_slope = 47):
     
@@ -295,8 +249,6 @@ def master_function():
             ETF_step_2 = (ETF_step_1)*empirical_transfer_function_slope_D48 + empirical_transfer_function_intercept_D48
             return ETF_step_2
     
-    export_line = {"component 1 contribution": component_1_contribution, "component 2 contribution": 1-component_1_contribution, "d18O mix": mixture_d18O_VPDB, "d13C mix": mixture_d13C_VPDB, "D47 model": add_etf_acidfrac(D47 = True), "D47 linear": mixture(component_1_D47, component_2_D47, component_1_contribution), "D48 model": add_etf_acidfrac(D47 = False), "D48 linear": mixture(component_1_D48, component_2_D48, component_1_contribution), "d45 mix": d45_mixture, "d46 mix": d46_mixture, "d47 mix": d47_mixture, "G47 mix": add_etf_acidfrac(D47 = True) - mixture(component_1_D47, component_2_D47, component_1_contribution), "G48 mix": add_etf_acidfrac(D47 = False) - mixture(component_1_D48, component_2_D48, component_1_contribution)}
+    export_line = {"component 1 contribution": component_1_contribution, "component 2 contribution": 1-component_1_contribution, "d18O mix": mixture_d18O_VPDB, "d13C mix": mixture_d13C_VPDB, "D47 model": add_etf_acidfrac(D47 = True), "D47 linear": mixture(component_1_D47, component_2_D47, component_1_contribution), "D48 model": add_etf_acidfrac(D47 = False), "D48 linear": mixture(component_1_D48, component_2_D48, component_1_contribution), "d45 mix": d45_mixture, "d46 mix": d46_mixture, "d47 mix": d47_mixture, "d48 mix": d48_mixture, "G47 mix": add_etf_acidfrac(D47 = True) - mixture(component_1_D47, component_2_D47, component_1_contribution), "G48 mix": add_etf_acidfrac(D47 = False) - mixture(component_1_D48, component_2_D48, component_1_contribution)}
     
     return print(export_line)
-
-
