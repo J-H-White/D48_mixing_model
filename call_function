@@ -1,0 +1,34 @@
+"""
+Created on Tue Sep 21 14:09:54 2021
+
+@author: Jackson White
+"""
+from mixing_model_D48 import mixing_model
+import numpy as np
+
+component_1_D47 = 0.214
+component_1_D48 = 0.138
+component_1_d18O_VPDB = -2.19
+component_1_d13C_VPDB = 2.02
+component_1_contribution = np.linspace(0, 1, num=21)
+component_2_D47 = 0.215
+component_2_D48 = 0.138
+component_2_d18O_VPDB = -18.69
+component_2_d13C_VPDB = -10.17
+
+# Note there is no component 2 contribution input, this is because this model is a mixture between two components. Therefore, the component 2 contribution is the compliment of the component 1 contribution (1 - component_1_contribution). Contributions have values between 0 and 1.
+
+T = 25
+
+empirical_transfer_function_slope_D47 = 1.0391
+empirical_transfer_function_intercept_D47 = 0.9499
+empirical_transfer_function_slope_D48 = 1.0005
+empirical_transfer_function_intercept_D48 = 0.3367
+
+heated_gas_line_slope_D47 = 0.0274
+heated_gas_line_slope_D48 = 0
+
+reference_gas_d13C_VPDB = -3.700
+reference_gas_d18O_VSMOW = 34.990
+
+mixing_model(component_1_D47, component_1_D48, component_1_d18O_VPDB, component_1_d13C_VPDB, component_1_contribution, component_2_D47, component_2_D48, component_2_d18O_VPDB, component_2_d13C_VPDB, T, empirical_transfer_function_slope_D47, empirical_transfer_function_intercept_D47, empirical_transfer_function_slope_D48, empirical_transfer_function_intercept_D48, heated_gas_line_slope_D47, heated_gas_line_slope_D48, reference_gas_d13C_VPDB, reference_gas_d18O_VSMOW)
