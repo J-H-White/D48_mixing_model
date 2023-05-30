@@ -1,0 +1,973 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Oct 24 10:17:55 2022
+
+@author: s4655097
+"""
+
+# Import packages
+
+from Mixing_model_paper import mixing_model
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+# Define mixing model parameters which remain unchanged through the whole script
+
+# By changing the variable "num" in np.linspace() the range between 0 and 1 is split into "num" increments
+
+endmember_1_contribution = list(np.linspace(1, 0, 21, endpoint=True))
+
+# Note there is no endmember 2 contribution input, this is because this model is a mixture between two endmembers. Therefore, the endmember 2 contribution is the compliment of the endmember 1 contribution (1 - endmember_1_contribution). Contributions have values between 0 and 1.
+
+temperature = 90
+
+empirical_transfer_function_slope_Δ47 = 1
+empirical_transfer_function_intercept_Δ47 = 0
+empirical_transfer_function_slope_Δ48 = 1
+empirical_transfer_function_intercept_Δ48 = 0
+
+heated_gas_line_slope_Δ47 = 0.0274 
+heated_gas_line_slope_Δ48 = 0.0274
+
+working_gas_δ13C_VPDB = -3.700
+working_gas_δ18O_VSMOW = 34.990
+
+endmember_1_δ18O_VPDB = 0
+endmember_1_δ13C_VPDB = 0
+
+# Dictionary for: Both samples have clumped isotope values reflecting 20°C; and endmember 1 has clumped isotope values reflecting 0°C, and endmember 2 has 40°C values.
+
+endmember_Δ = {'T 20°C':
+               {'endmember_1_Δ47' : 0.6096563512154838, 'endmember_1_Δ48' : 0.25392111373304166,
+                'endmember_2_Δ47' : 0.6096563512154838, 'endmember_2_Δ48' : 0.25392111373304166},
+               
+               'T 0°C & 40°C':
+               {'endmember_1_Δ47' : 0.671733269763163, 'endmember_1_Δ48' : 0.2848057517734932,
+                'endmember_2_Δ47' : 0.55476462643177, 'endmember_2_Δ48' : 0.22982695719015211}
+                } 
+
+# Dictionary for δ13C and δ18O trends.
+
+endmember_δ = {'Increasing δ13C and constant δ18O':
+               {'endmember_2_δ18O_VPDB' : [0, 0, 0, 0], 'endmember_2_δ13C_VPDB' : [0, 5, 10, 15]},
+               
+               'Constant δ13C and increasing δ18O': 
+               {'endmember_2_δ18O_VPDB' : [0, 5, 10, 15], 'endmember_2_δ13C_VPDB' : [0, 0, 0, 0]},
+               
+               'Increasing δ13C and δ18O':   
+               {'endmember_2_δ18O_VPDB' : [0, 5, 10, 15], 'endmember_2_δ13C_VPDB' : [0, 5, 10, 15]},
+               
+               'Increasing δ13C and decreasing δ18O':   
+               {'endmember_2_δ18O_VPDB' : [15, 10, 5, 0], 'endmember_2_δ13C_VPDB' : [0, 5, 10, 15]},
+               
+               'Decreasing δ13C (negative values) and constant δ18O':   
+               {'endmember_2_δ18O_VPDB' : [0, 0, 0, 0], 'endmember_2_δ13C_VPDB' : [0, -5, -10, -15]},
+               
+               'Constant δ13C and decreasing (negative values) δ18O':   
+               {'endmember_2_δ18O_VPDB' : [0, -5, -10, -15], 'endmember_2_δ13C_VPDB' : [0, 0, 0, 0]},
+               
+               'Decreasing (negative values) δ13C and δ18O': 
+               {'endmember_2_δ18O_VPDB' : [0, -5, -10, -15], 'endmember_2_δ13C_VPDB' : [0, -5, -10, -15]},
+               
+               'Decreasing (negative values) δ13C and increasing (positive values) δ18O':   
+               {'endmember_2_δ18O_VPDB' : [0, 5, 10, 15], 'endmember_2_δ13C_VPDB' : [0, -5, -10, -15]},
+               
+               'Increasing (positive values) δ13C and decreasing (negative values) δ18O':   
+               {'endmember_2_δ18O_VPDB' : [0, -5, -10, -15], 'endmember_2_δ13C_VPDB' : [0, 5, 10, 15]},
+               
+               'Decreasing (negative values) δ13C and increasing (negative values) δ18O':   
+               {'endmember_2_δ18O_VPDB' : [-15, -10, -5, 0], 'endmember_2_δ13C_VPDB' : [0, -5, -10, -15]}
+              }
+
+# Equilibrium line increments
+
+T_eq_increments = list(np.linspace(0, 40, 21, endpoint=True))
+
+# These functions define the Δ47 and Δ48 values based on temperature, assuming equilibrium.
+
+def Δ47_CDES90(C):
+    # Scale conversion from degrees Celsius ("C") to Kelvin ("K")
+    K = C + 273.15
+    # Eq (3), Fiebig et al. (2021)
+    Δ63 = -5.897 * (K**-1) - (3.521 * 10**3) * (K**-2) + (2.391 * 10**7) * (K**-3) - (3.541 * 10**9) * (K**-4)
+    # Eq (5), Fiebig et al. (2021)
+    Δ47 = 1.038*Δ63 + 0.1856
+    return Δ47
+
+def Δ48_CDES90(C):
+    # Scale conversion from degrees Celsius ("C") to Kelvin ("K")
+    K = C + 273.15
+    # Eq (4), Fiebig et al. (2021)
+    Δ64 = 6.002 * (K**-1) - (1.299 * 10**4) * (K**-2) + (8.996 * 10**6) * (K**-3) - (7.423 * 10**8) * (K**-4)
+    # Eq (6), Fiebig et al. (2021)
+    Δ48 = 1.028*Δ64 + 0.1245
+    return Δ48
+    
+# We need to create a place for all these scenarios to be stored
+
+df = pd.DataFrame(columns=['endmember 1 Δ47 (CDES)', 'endmember 2 Δ47 (CDES)', 'endmember 1 Δ48 (CDES)', 'endmember 2 Δ48 (CDES)', 'endmember 1 contribution', 'endmember 2 contribution', 'endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 δ18O (VSMOW)', 'endmember 2 δ18O (VSMOW)', 'δ13C (VPDB) mix', 'δ18O (VPDB) mix', 'Δ47 model (CDES)', 'Δ48 model (CDES)'])
+
+# Create a nested 'for loop' to create our scenarios. Both endmember_2_δ13C_VPDB and endmember_2_δ18O_VPDB lists are the same lengths always so we can choose to iterate over either.
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        for value in range(len(endmember_δ[keyδ]['endmember_2_δ18O_VPDB'])):
+            
+            for contribution in range(len(endmember_1_contribution)):
+                
+               df_dictionary = pd.DataFrame([mixing_model(
+                   
+                   endmember_Δ[keyΔ]['endmember_1_Δ47'], endmember_Δ[keyΔ]['endmember_1_Δ48'],
+                   endmember_1_δ18O_VPDB, endmember_1_δ13C_VPDB,
+                                               
+                   endmember_1_contribution[contribution],
+                                               
+                   endmember_Δ[keyΔ]['endmember_2_Δ47'], endmember_Δ[keyΔ]['endmember_2_Δ48'],
+                   endmember_δ[keyδ]['endmember_2_δ18O_VPDB'][value], endmember_δ[keyδ]['endmember_2_δ13C_VPDB'][value],
+                                               
+                   temperature,
+                   empirical_transfer_function_slope_Δ47, empirical_transfer_function_intercept_Δ47,
+                   empirical_transfer_function_slope_Δ48, empirical_transfer_function_intercept_Δ48,
+                   heated_gas_line_slope_Δ47, heated_gas_line_slope_Δ48,
+                   working_gas_δ13C_VPDB, working_gas_δ18O_VSMOW)])
+               
+               # Append the different cases into the DataFrame
+               
+               df_dictionary['Δ case'] = keyΔ
+               df_dictionary['δ case'] = keyδ
+               
+               if keyΔ == 'T 20°C':
+                   df_dictionary['Δ47 eq increments'] = Δ47_CDES90(20)
+                   df_dictionary['Δ48 eq increments'] = Δ48_CDES90(20)
+                   
+               elif keyΔ == 'T 0°C & 40°C':
+                   df_dictionary['Δ47 eq increments'] = Δ47_CDES90(T_eq_increments[contribution])
+                   df_dictionary['Δ48 eq increments'] = Δ48_CDES90(T_eq_increments[contribution])
+               
+               df = pd.concat([df, df_dictionary], ignore_index=True)
+        
+# Create pandas Series for temperature values. In this case we will experiment with 0 to 40°C, in 2°C increments.
+
+T_df = pd.DataFrame({'T_C' : list(np.linspace(0, 40, 20, endpoint=True))})
+
+# Add Δ47_CDES90 and Δ47_CDES90 columns
+
+T_df['Δ47_CDES90'] = (Δ47_CDES90(T_df['T_C']))
+T_df['Δ48_CDES90'] = (Δ48_CDES90(T_df['T_C']))
+
+# Least squares polynomial fit of our 'x' value (Δ47_CDES90) and 'y' (Δ48_CDES90).
+
+Δ48 = np.array(T_df['Δ48_CDES90'])
+Δ47 = np.array(T_df['Δ47_CDES90'])
+
+# Calculate displacement (d) per increment using pythagoras' theorem. This measure mostly characterises the Δ48 endmember.
+
+df['displacement'] = (((df['Δ47 model (CDES)'] - df['Δ47 eq increments'])**2) + ((df['Δ48 model (CDES)'] - df['Δ48 eq increments'])**2))**(0.5)
+
+# Calculate the angle (θ) between the x-axis (Δ48) and the displacement line.
+
+df['θ'] = np.rad2deg(np.arcsin((df['Δ47 model (CDES)'] - df['Δ47 eq increments']) / df['displacement']))
+
+# Least squares polynomial fit for our predictor value 'Δ48' and response 'T', with a polynomial of 4th degree.
+
+polynomial_TΔ48 = np.polyfit(T_df['Δ48_CDES90'], T_df['T_C'], 4)
+
+# Least squares polynomial fit for our predictor value 'Δ47' and response 'T', with a polynomial of 4th degree.
+
+polynomial_TΔ47 = np.polyfit(T_df['Δ47_CDES90'], T_df['T_C'], 4)
+
+# Create temperature equivalent columns for 'Δ47 model (CDES)', 'Δ47 eq increments', 'Δ48 model (CDES)', and 'Δ48 eq increments'.
+
+df['T Δ47 model (CDES)'] = np.polyval(polynomial_TΔ47, df['Δ47 model (CDES)'])
+df['T Δ47 eq increments'] = np.polyval(polynomial_TΔ47, df['Δ47 eq increments'])
+df['T Δ48 model (CDES)'] = np.polyval(polynomial_TΔ48, df['Δ48 model (CDES)'])
+df['T Δ48 eq increments'] = np.polyval(polynomial_TΔ48, df['Δ48 eq increments'])
+
+# Calculate the difference in Δ48 between the model ('Δ48 model (CDES)') and linear increments ('Δ48 eq increments').
+
+df['diff Δ48'] = df['Δ48 model (CDES)'] - df['Δ48 eq increments']
+
+# Calculate the difference in Δ48 between the model ('Δ47 model (CDES)') and linear increments ('Δ47 eq increments').
+
+df['diff Δ47'] = df['Δ47 model (CDES)'] - df['Δ47 eq increments']
+
+# Filter results so that these are statistically significant
+
+df_filter1 = df[(df['diff Δ47'] >= 0.002) & (df['diff Δ48'] >= 0.006)]
+
+# Filter results so that these are statistically significant
+
+df_filter2 = df[(df['diff Δ47'] >= 0.002) & (df['diff Δ48'] >= 0.008)]
+
+# Create subset of maximum overall displacement
+
+df_dis = pd.DataFrame(columns=[])
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        case_dis = df[(df['Δ case'] == keyΔ) & (df['δ case'] == keyδ)]
+        max_displacement = case_dis['displacement'].max()
+        
+        df_dis = pd.concat([df_dis, case_dis[case_dis['displacement'] == max_displacement]], ignore_index=True)
+
+df_sub_dis = df_dis[['endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 contribution', 'Δ case', 'δ case', 'Δ47 eq increments', 'Δ48 eq increments', 'displacement', 'θ', 'T Δ47 model (CDES)', 'T Δ47 eq increments', 'T Δ48 model (CDES)', 'T Δ48 eq increments']]
+
+# Create subset of the minimum Δ47 value for each case
+
+df_Δ47_min = pd.DataFrame(columns=[])
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        case_Δ47 = df[(df['Δ case'] == keyΔ) & (df['δ case'] == keyδ)]
+        min_Δ47 = case_Δ47['Δ47 model (CDES)'].min()
+        
+        df_Δ47_min = pd.concat([df_Δ47_min, case_Δ47[case_Δ47['Δ47 model (CDES)'] == min_Δ47]], ignore_index=True)
+        
+df_sub_Δ47_min = df_Δ47_min[['endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 contribution', 'Δ case', 'δ case', 'Δ47 eq increments', 'Δ48 eq increments', 'displacement', 'θ', 'T Δ47 model (CDES)', 'T Δ47 eq increments', 'T Δ48 model (CDES)', 'T Δ48 eq increments']]
+
+# Create subset of the maximum Δ47 value for each case
+
+df_Δ47_max = pd.DataFrame(columns=[])
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        case_Δ47 = df[(df['Δ case'] == keyΔ) & (df['δ case'] == keyδ)]
+        max_Δ47 = case_Δ47['Δ47 model (CDES)'].max()
+        
+        df_Δ47_max = pd.concat([df_Δ47_max, case_Δ47[case_Δ47['Δ47 model (CDES)'] == max_Δ47]], ignore_index=True)
+
+df_sub_Δ47_max = df_Δ47_max[['endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 contribution', 'Δ case', 'δ case', 'Δ47 eq increments', 'Δ48 eq increments', 'displacement', 'θ', 'T Δ47 model (CDES)', 'T Δ47 eq increments', 'T Δ48 model (CDES)', 'T Δ48 eq increments']]
+
+# Create subset of the minimum Δ48 value for each case
+
+df_Δ48_min = pd.DataFrame(columns=[])
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        case_Δ48 = df[(df['Δ case'] == keyΔ) & (df['δ case'] == keyδ)]
+        max_Δ48 = case_Δ48['Δ48 model (CDES)'].max()
+        
+        df_Δ48_min = pd.concat([df_Δ48_min, case_Δ48[case_Δ48['Δ48 model (CDES)'] == max_Δ48]], ignore_index=True)
+
+df_sub_Δ48_min = df_Δ48_min[['endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 contribution', 'Δ case', 'δ case', 'Δ47 eq increments', 'Δ48 eq increments', 'displacement', 'θ', 'T Δ47 model (CDES)', 'T Δ47 eq increments', 'T Δ48 model (CDES)', 'T Δ48 eq increments']]
+
+# Create subset of the maximum Δ48 value for each case
+
+df_Δ48_max = pd.DataFrame(columns=[])
+
+for keyΔ in endmember_Δ.keys():
+    
+    for keyδ in endmember_δ.keys():
+        
+        case_Δ48 = df[(df['Δ case'] == keyΔ) & (df['δ case'] == keyδ)]
+        max_Δ48 = case_Δ48['Δ48 model (CDES)'].max()
+        
+        df_Δ48_max = pd.concat([df_Δ48_max, case_Δ48[case_Δ48['Δ48 model (CDES)'] == max_Δ48]], ignore_index=True)
+        
+df_sub_Δ48_max = df_Δ48_max[['endmember 1 δ13C (VPDB)', 'endmember 2 δ13C (VPDB)', 'endmember 1 δ18O (VPDB)', 'endmember 2 δ18O (VPDB)', 'endmember 1 contribution', 'Δ case', 'δ case', 'Δ47 eq increments', 'Δ48 eq increments', 'displacement', 'θ', 'T Δ47 model (CDES)', 'T Δ47 eq increments', 'T Δ48 model (CDES)', 'T Δ48 eq increments']]
+
+# Create Figure 1 and its corresponding subplots.
+
+fig1 = plt.figure(constrained_layout=True, dpi=250, figsize=(9,8.4375))
+ax1  = fig1.subplots(3, 2)
+
+# Make subplots for Figure 1A T 20°C; Increasing δ13C and constant δ18O    
+
+_5_1a = 5
+_10_1a = 10
+_15_1a = 15
+
+Δ_1a = 'T 20°C'
+δ_1a = 'Increasing δ13C and constant δ18O'
+
+df1a00 = df[(df['Δ case'] == Δ_1a) & (df['δ case'] == δ_1a) & (df['endmember 2 δ13C (VPDB)'] == 0)]
+df1a05 = df[(df['Δ case'] == Δ_1a) & (df['δ case'] == δ_1a) & (df['endmember 2 δ13C (VPDB)'] == _5_1a)]
+df1a10 = df[(df['Δ case'] == Δ_1a) & (df['δ case'] == δ_1a) & (df['endmember 2 δ13C (VPDB)'] == _10_1a)]
+df1a15 = df[(df['Δ case'] == Δ_1a) & (df['δ case'] == δ_1a) & (df['endmember 2 δ13C (VPDB)'] == _15_1a)]
+
+# Polynomial fit for this to calculate temperature's based on Δ48 for 1a subplot.
+
+TΔ48_1a_0 = np.polyval(polynomial_TΔ48, df1a00['Δ48 model (CDES)'].max())
+TΔ48_1a_5 = np.polyval(polynomial_TΔ48, df1a05['Δ48 model (CDES)'].max())
+TΔ48_1a_10 = np.polyval(polynomial_TΔ48, df1a10['Δ48 model (CDES)'].max())
+TΔ48_1a_15 = np.polyval(polynomial_TΔ48, df1a15['Δ48 model (CDES)'].max())
+
+# Polynomial fit for this to calculate temperature's based on Δ47 for 1a subplot.
+
+TΔ47_1a_0 = np.polyval(polynomial_TΔ47, df1a00['Δ47 model (CDES)'].max())
+TΔ47_1a_5 = np.polyval(polynomial_TΔ47, df1a05['Δ47 model (CDES)'].max())
+TΔ47_1a_10 = np.polyval(polynomial_TΔ47, df1a10['Δ47 model (CDES)'].max())
+TΔ47_1a_15 = np.polyval(polynomial_TΔ47, df1a15['Δ47 model (CDES)'].min())
+
+ax1[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1a00, label='0 ‰')
+
+ax1[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1a05, label='±5 ‰')
+
+ax1[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1a10, label='±10 ‰')
+
+ax1[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1a15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[0,0].plot(Δ48, Δ47, 'k-', label= 'Δ48–Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[0,0].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[0,0].set_ylim(0.5475, 0.677)
+        
+ax1[0,0].annotate(('0°C'), (Δ48_CDES90(0) - 0.00875 , Δ47_CDES90(0) - 0.004), fontsize = 12)
+ax1[0,0].annotate(('20°C'), (Δ48_CDES90(20) - 0.01 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[0,0].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax1[0,0].annotate(('A'), (0.23, 0.66), fontsize = 12)
+ax1[0,0].tick_params(axis='both', labelsize=12)
+
+# Add axis and legend to figure
+ 
+fig1.supxlabel(r'$Δ_{48(CDES90)} (‰)$', size = 20)
+fig1.supylabel(r'$Δ_{47(CDES90)} (‰)$', size = 20)        
+fig1.legend(bbox_to_anchor = (0.5325, 0.8825), fontsize= 12)
+
+# Make subplots for Figure 1B T 0°C & 40°C; Increasing δ13C and constant δ18O    
+
+_5_1b = 5
+_10_1b = 10
+_15_1b = 15
+
+Δ_1b = 'T 0°C & 40°C'
+δ_1b = 'Increasing δ13C and constant δ18O'
+
+df1b00 = df[(df['Δ case'] == Δ_1b) & (df['δ case'] == δ_1b) & (df['endmember 2 δ13C (VPDB)'] == 0)]
+df1b05 = df[(df['Δ case'] == Δ_1b) & (df['δ case'] == δ_1b) & (df['endmember 2 δ13C (VPDB)'] == _5_1b)]
+df1b10 = df[(df['Δ case'] == Δ_1b) & (df['δ case'] == δ_1b) & (df['endmember 2 δ13C (VPDB)'] == _10_1b)]
+df1b15 = df[(df['Δ case'] == Δ_1b) & (df['δ case'] == δ_1b) & (df['endmember 2 δ13C (VPDB)'] == _15_1b)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_1b_0 = np.polyval(polynomial_TΔ48, df1b00['Δ48 model (CDES)'].max())
+TΔ48_1b_5 = np.polyval(polynomial_TΔ48, df1b05['Δ48 model (CDES)'].max())
+TΔ48_1b_10 = np.polyval(polynomial_TΔ48, df1b10['Δ48 model (CDES)'].max())
+TΔ48_1b_15 = np.polyval(polynomial_TΔ48, df1b15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_1b_0 = np.polyval(polynomial_TΔ47, df1b00['Δ47 model (CDES)'].max())
+TΔ47_1b_5 = np.polyval(polynomial_TΔ47, df1b05['Δ47 model (CDES)'].max())
+TΔ47_1b_10 = np.polyval(polynomial_TΔ47, df1b10['Δ47 model (CDES)'].max())
+TΔ47_1b_15 = np.polyval(polynomial_TΔ47, df1b15['Δ47 model (CDES)'].min())
+
+ax1[0,1].yaxis.set_ticklabels([])
+
+ax1[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1b00, label='0 ‰')
+
+ax1[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1b05, label='±5 ‰')
+
+ax1[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1b10, label='±10 ‰')
+
+ax1[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1b15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[0,1].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[0,1].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[0,1].set_ylim(0.5475, 0.677)
+
+ax1[0,1].annotate(('0°C'), (Δ48_CDES90(0) - 0.01 , Δ47_CDES90(0) - 0.004), fontsize = 12)
+ax1[0,1].annotate(('20°C'), (Δ48_CDES90(20) - 0.01 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[0,1].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+        
+ax1[0,1].annotate(('B'), (0.23, 0.66), fontsize= 12)
+ax1[0,1].tick_params(axis='both', labelsize=12)    
+
+# Make subplots for Figure 1C T 20°C; Constant δ13C and increasing δ18O
+
+_5_1c = 5
+_10_1c = 10
+_15_1c = 15
+
+Δ_1c = 'T 20°C'
+δ_1c = 'Constant δ13C and increasing δ18O'
+
+df1c00 = df[(df['Δ case'] == Δ_1c) & (df['δ case'] == δ_1c) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df1c05 = df[(df['Δ case'] == Δ_1c) & (df['δ case'] == δ_1c) & (df['endmember 2 δ18O (VPDB)'] == _5_1c)]
+df1c10 = df[(df['Δ case'] == Δ_1c) & (df['δ case'] == δ_1c) & (df['endmember 2 δ18O (VPDB)'] == _10_1c)]
+df1c15 = df[(df['Δ case'] == Δ_1c) & (df['δ case'] == δ_1c) & (df['endmember 2 δ18O (VPDB)'] == _15_1c)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_1c_0 = np.polyval(polynomial_TΔ48, df1c00['Δ48 model (CDES)'].max())
+TΔ48_1c_5 = np.polyval(polynomial_TΔ48, df1c05['Δ48 model (CDES)'].max())
+TΔ48_1c_10 = np.polyval(polynomial_TΔ48, df1c10['Δ48 model (CDES)'].max())
+TΔ48_1c_15 = np.polyval(polynomial_TΔ48, df1c15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_1c_0 = np.polyval(polynomial_TΔ47, df1c00['Δ47 model (CDES)'].max())
+TΔ47_1c_5 = np.polyval(polynomial_TΔ47, df1c05['Δ47 model (CDES)'].max())
+TΔ47_1c_10 = np.polyval(polynomial_TΔ47, df1c10['Δ47 model (CDES)'].max())
+TΔ47_1c_15 = np.polyval(polynomial_TΔ47, df1c15['Δ47 model (CDES)'].min())
+
+ax1[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1c00, label='0 ‰')
+
+ax1[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1c05, label='±5 ‰')
+
+ax1[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1c10, label='±10 ‰')
+
+ax1[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1c15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[1,0].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[1,0].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[1,0].set_xlim(0.22, 0.325)
+ax1[1,0].set_ylim(0.5475, 0.677)
+
+ax1[1,0].annotate(('0°C'), (Δ48_CDES90(0) - 0.0125 , Δ47_CDES90(0) - 0.004), fontsize = 12)
+ax1[1,0].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[1,0].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax1[1,0].annotate(('C'), (0.225, 0.66), fontsize= 12)
+ax1[1,0].tick_params(axis='both', labelsize=12)
+
+# Make subplots for Figure 1D T 0°C & 40°C; Constant δ13C and increasing δ18O
+
+_5_1d = 5
+_10_1d = 10
+_15_1d = 15
+
+Δ_1d = 'T 0°C & 40°C'
+δ_1d = 'Constant δ13C and increasing δ18O'
+
+df1d00 = df[(df['Δ case'] == Δ_1d) & (df['δ case'] == δ_1d) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df1d05 = df[(df['Δ case'] == Δ_1d) & (df['δ case'] == δ_1d) & (df['endmember 2 δ18O (VPDB)'] == _5_1d)]
+df1d10 = df[(df['Δ case'] == Δ_1d) & (df['δ case'] == δ_1d) & (df['endmember 2 δ18O (VPDB)'] == _10_1d)]
+df1d15 = df[(df['Δ case'] == Δ_1d) & (df['δ case'] == δ_1d) & (df['endmember 2 δ18O (VPDB)'] == _15_1d)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_1d_0 = np.polyval(polynomial_TΔ48, df1d00['Δ48 model (CDES)'].max())
+TΔ48_1d_5 = np.polyval(polynomial_TΔ48, df1d05['Δ48 model (CDES)'].max())
+TΔ48_1d_10 = np.polyval(polynomial_TΔ48, df1d10['Δ48 model (CDES)'].max())
+TΔ48_1d_15 = np.polyval(polynomial_TΔ48, df1d15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_1d_0 = np.polyval(polynomial_TΔ47, df1d00['Δ47 model (CDES)'].max())
+TΔ47_1d_5 = np.polyval(polynomial_TΔ47, df1d05['Δ47 model (CDES)'].max())
+TΔ47_1d_10 = np.polyval(polynomial_TΔ47, df1d10['Δ47 model (CDES)'].max())
+TΔ47_1d_15 = np.polyval(polynomial_TΔ47, df1d15['Δ47 model (CDES)'].min())
+
+ax1[1,1].yaxis.set_ticklabels([])
+
+ax1[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1d00, label='0 ‰')
+
+ax1[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1d05, label='±5 ‰')
+
+ax1[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1d10, label='±10 ‰')
+
+ax1[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1d15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[1,1].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[1,1].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[1,1].set_xlim(0.22, 0.325)
+ax1[1,1].set_ylim(0.5475, 0.677)
+
+ax1[1,1].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax1[1,1].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[1,1].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax1[1,1].annotate(('D'), (0.225, 0.66), fontsize= 12)
+ax1[1,1].tick_params(axis='both', labelsize=12)
+
+# Make subplots for Figure 1E T 20°C; Increasing δ13C and decreasing δ18O
+
+_5_1e = 5
+_10_1e = 10
+_15_1e = 15
+
+Δ_1e = 'T 20°C'
+δ_1e = 'Increasing δ13C and decreasing δ18O'
+
+df1e00 = df[(df['Δ case'] == Δ_1e) & (df['δ case'] == δ_1e) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df1e05 = df[(df['Δ case'] == Δ_1e) & (df['δ case'] == δ_1e) & (df['endmember 2 δ18O (VPDB)'] == _5_1e)]
+df1e10 = df[(df['Δ case'] == Δ_1e) & (df['δ case'] == δ_1e) & (df['endmember 2 δ18O (VPDB)'] == _10_1e)]
+df1e15 = df[(df['Δ case'] == Δ_1e) & (df['δ case'] == δ_1e) & (df['endmember 2 δ18O (VPDB)'] == _15_1e)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_1e_0 = np.polyval(polynomial_TΔ48, df1e00['Δ48 model (CDES)'].max())
+TΔ48_1e_5 = np.polyval(polynomial_TΔ48, df1e05['Δ48 model (CDES)'].max())
+TΔ48_1e_10 = np.polyval(polynomial_TΔ48, df1e10['Δ48 model (CDES)'].max())
+TΔ48_1e_15 = np.polyval(polynomial_TΔ48, df1e15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_1e_0 = np.polyval(polynomial_TΔ47, df1e00['Δ47 model (CDES)'].max())
+TΔ47_1e_5 = np.polyval(polynomial_TΔ47, df1e05['Δ47 model (CDES)'].max())
+TΔ47_1e_10 = np.polyval(polynomial_TΔ47, df1e10['Δ47 model (CDES)'].max())
+TΔ47_1e_15 = np.polyval(polynomial_TΔ47, df1e15['Δ47 model (CDES)'].min())
+
+ax1[2,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1e00, label='0 ‰')
+
+ax1[2,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1e05, label='±5 ‰')
+
+ax1[2,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1e10, label='±10 ‰')
+
+ax1[2,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1e15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[2,0].plot(Δ48, Δ47, 'k-', label= 'Δ48–Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[2,0].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[2,0].set_xlim(0.22, 0.325)
+ax1[2,0].set_ylim(0.5475, 0.677)
+
+ax1[2,0].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax1[2,0].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[2,0].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax1[2,0].annotate(('E'), (0.225, 0.66), fontsize= 12)
+ax1[2,0].tick_params(axis='both', labelsize=12)       
+
+# Make subplots for Figure 1F T 0°C & 40°C; Increasing δ13C and decreasing δ18O
+
+_5_1f = 5
+_10_1f = 10
+_15_1f = 15
+
+Δ_1f = 'T 0°C & 40°C'
+δ_1f = 'Increasing δ13C and decreasing δ18O'
+
+df1f00 = df[(df['Δ case'] == Δ_1f) & (df['δ case'] == δ_1f) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df1f05 = df[(df['Δ case'] == Δ_1f) & (df['δ case'] == δ_1f) & (df['endmember 2 δ18O (VPDB)'] == _5_1f)]
+df1f10 = df[(df['Δ case'] == Δ_1f) & (df['δ case'] == δ_1f) & (df['endmember 2 δ18O (VPDB)'] == _10_1f)]
+df1f15 = df[(df['Δ case'] == Δ_1f) & (df['δ case'] == δ_1f) & (df['endmember 2 δ18O (VPDB)'] == _15_1f)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_1f_0 = np.polyval(polynomial_TΔ48, df1f00['Δ48 model (CDES)'].max())
+TΔ48_1f_5 = np.polyval(polynomial_TΔ48, df1f05['Δ48 model (CDES)'].max())
+TΔ48_1f_10 = np.polyval(polynomial_TΔ48, df1f10['Δ48 model (CDES)'].max())
+TΔ48_1f_15 = np.polyval(polynomial_TΔ48, df1f15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_1f_0 = np.polyval(polynomial_TΔ47, df1f00['Δ47 model (CDES)'].max())
+TΔ47_1f_5 = np.polyval(polynomial_TΔ47, df1f05['Δ47 model (CDES)'].max())
+TΔ47_1f_10 = np.polyval(polynomial_TΔ47, df1f10['Δ47 model (CDES)'].max())
+TΔ47_1f_15 = np.polyval(polynomial_TΔ47, df1f15['Δ47 model (CDES)'].min())
+
+ax1[2,1].yaxis.set_ticklabels([])
+
+ax1[2,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df1f00, label='0 ‰')
+
+ax1[2,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df1f05, label='±5 ‰')
+
+ax1[2,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df1f10, label='±10 ‰')
+
+ax1[2,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df1f15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax1[2,1].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax1[2,1].plot(Δ48arr, Δ47arr, 'ko')
+
+ax1[2,1].set_xlim(0.22, 0.325)
+ax1[2,1].set_ylim(0.5475, 0.677)
+
+ax1[2,1].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax1[2,1].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax1[2,1].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax1[2,1].annotate(('F'), (0.225, 0.66), fontsize= 12)
+ax1[2,1].tick_params(axis='both', labelsize=12)
+
+# Create Figure 2 and its corresponding subplots.
+
+fig2 = plt.figure(constrained_layout=True, dpi=250, figsize=(9,8.4375))
+ax2  = fig2.subplots(2, 2)
+
+# Make subplots for Figure 2A T 20°C; Increasing δ13C and δ18O   
+
+_5_2a = 5
+_10_2a = 10
+_15_2a = 15
+
+Δ_2a = 'T 20°C'
+δ_2a = 'Increasing δ13C and δ18O'
+
+df2a00 = df[(df['Δ case'] == Δ_2a) & (df['δ case'] == δ_2a) & (df['endmember 2 δ13C (VPDB)'] == 0)]
+df2a05 = df[(df['Δ case'] == Δ_2a) & (df['δ case'] == δ_2a) & (df['endmember 2 δ13C (VPDB)'] == _5_2a)]
+df2a10 = df[(df['Δ case'] == Δ_2a) & (df['δ case'] == δ_2a) & (df['endmember 2 δ13C (VPDB)'] == _10_2a)]
+df2a15 = df[(df['Δ case'] == Δ_2a) & (df['δ case'] == δ_2a) & (df['endmember 2 δ13C (VPDB)'] == _15_2a)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_2a_0 = np.polyval(polynomial_TΔ48, df2a00['Δ48 model (CDES)'].max())
+TΔ48_2a_5 = np.polyval(polynomial_TΔ48, df2a05['Δ48 model (CDES)'].max())
+TΔ48_2a_10 = np.polyval(polynomial_TΔ48, df2a10['Δ48 model (CDES)'].max())
+TΔ48_2a_15 = np.polyval(polynomial_TΔ48, df2a15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_2a_0 = np.polyval(polynomial_TΔ47, df2a00['Δ47 model (CDES)'].max())
+TΔ47_2a_5 = np.polyval(polynomial_TΔ47, df2a05['Δ47 model (CDES)'].max())
+TΔ47_2a_10 = np.polyval(polynomial_TΔ47, df2a10['Δ47 model (CDES)'].max())
+TΔ47_2a_15 = np.polyval(polynomial_TΔ47, df2a15['Δ47 model (CDES)'].min())
+
+ax2[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df2a00, label='0 ‰')
+
+ax2[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df2a05, label='±5 ‰')
+
+ax2[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df2a10, label='±10 ‰')
+
+ax2[0,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df2a15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax2[0,0].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax2[0,0].plot(Δ48arr, Δ47arr, 'ko')
+
+ax2[0,0].set_xlim(0.22, 0.33)
+ax2[0,0].set_ylim(0.551, 0.7)
+
+ax2[0,0].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax2[0,0].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax2[0,0].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax2[0,0].annotate(('A'), (0.225, 0.69), fontsize= 12)
+ax2[0,0].tick_params(axis='both', labelsize=12)
+
+# Add axis and legend to figure
+
+fig2.supxlabel(r'$Δ_{48(CDES90)} (‰)$', size = 20)
+fig2.supylabel(r'$Δ_{47(CDES90)} (‰)$', size = 20)        
+fig2.legend(bbox_to_anchor = (0.52875, 0.7275), fontsize=12)
+
+# Make subplots for Figure 2B T 0°C & 40°C; Increasing δ13C and δ18O
+
+_5_2b = 5
+_10_2b = 10
+_15_2b = 15
+
+Δ_2b = 'T 0°C & 40°C'
+δ_2b = 'Increasing δ13C and δ18O'
+
+df2b00 = df[(df['Δ case'] == Δ_2b) & (df['δ case'] == δ_2b) & (df['endmember 2 δ13C (VPDB)'] == 0)]
+df2b05 = df[(df['Δ case'] == Δ_2b) & (df['δ case'] == δ_2b) & (df['endmember 2 δ13C (VPDB)'] == _5_2b)]
+df2b10 = df[(df['Δ case'] == Δ_2b) & (df['δ case'] == δ_2b) & (df['endmember 2 δ13C (VPDB)'] == _10_2b)]
+df2b15 = df[(df['Δ case'] == Δ_2b) & (df['δ case'] == δ_2b) & (df['endmember 2 δ13C (VPDB)'] == _15_2b)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_2b_0 = np.polyval(polynomial_TΔ48, df2b00['Δ48 model (CDES)'].max())
+TΔ48_2b_5 = np.polyval(polynomial_TΔ48, df2b05['Δ48 model (CDES)'].max())
+TΔ48_2b_10 = np.polyval(polynomial_TΔ48, df2b10['Δ48 model (CDES)'].max())
+TΔ48_2b_15 = np.polyval(polynomial_TΔ48, df2b15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_2b_0 = np.polyval(polynomial_TΔ47, df2b00['Δ47 model (CDES)'].max())
+TΔ47_2b_5 = np.polyval(polynomial_TΔ47, df2b05['Δ47 model (CDES)'].max())
+TΔ47_2b_10 = np.polyval(polynomial_TΔ47, df2b10['Δ47 model (CDES)'].max())
+TΔ47_2b_15 = np.polyval(polynomial_TΔ47, df2b15['Δ47 model (CDES)'].min())
+
+ax2[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df2b00, label='0 ‰')
+
+ax2[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df2b05, label='±5 ‰')
+
+ax2[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df2b10, label='±10 ‰')
+
+ax2[0,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df2b15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax2[0,1].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax2[0,1].plot(Δ48arr, Δ47arr, 'ko')
+
+ax2[0,1].set_xlim(0.22, 0.33)
+ax2[0,1].set_ylim(0.551, 0.7)
+ax2[0,1].yaxis.set_ticklabels([])
+
+ax2[0,1].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax2[0,1].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax2[0,1].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax2[0,1].annotate(('B'), (0.225, 0.69), fontsize= 12)
+ax2[0,1].tick_params(axis='both', labelsize=12)
+        
+# Make subplots for Figure 2C T 20°C; Increasing (positive values) δ13C and decreasing (negative values) δ18O
+
+_5_2c = -5
+_10_2c = -10
+_15_2c = -15
+
+Δ_2c = 'T 20°C'
+δ_2c = 'Increasing (positive values) δ13C and decreasing (negative values) δ18O'
+
+df2c00 = df[(df['Δ case'] == Δ_2c) & (df['δ case'] == δ_2c) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df2c05 = df[(df['Δ case'] == Δ_2c) & (df['δ case'] == δ_2c) & (df['endmember 2 δ18O (VPDB)'] == _5_2c)]
+df2c10 = df[(df['Δ case'] == Δ_2c) & (df['δ case'] == δ_2c) & (df['endmember 2 δ18O (VPDB)'] == _10_2c)]
+df2c15 = df[(df['Δ case'] == Δ_2c) & (df['δ case'] == δ_2c) & (df['endmember 2 δ18O (VPDB)'] == _15_2c)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_2c_0 = np.polyval(polynomial_TΔ48, df2c00['Δ48 model (CDES)'].max())
+TΔ48_2c_5 = np.polyval(polynomial_TΔ48, df2c05['Δ48 model (CDES)'].max())
+TΔ48_2c_10 = np.polyval(polynomial_TΔ48, df2c10['Δ48 model (CDES)'].max())
+TΔ48_2c_15 = np.polyval(polynomial_TΔ48, df2c15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_2c_0 = np.polyval(polynomial_TΔ47, df2c00['Δ47 model (CDES)'].max())
+TΔ47_2c_5 = np.polyval(polynomial_TΔ47, df2c05['Δ47 model (CDES)'].max())
+TΔ47_2c_10 = np.polyval(polynomial_TΔ47, df2c10['Δ47 model (CDES)'].max())
+TΔ47_2c_15 = np.polyval(polynomial_TΔ47, df2c15['Δ47 model (CDES)'].min())
+
+ax2[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df2c00, label='0 ‰')
+
+ax2[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df2c05, label='±5 ‰')
+
+ax2[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df2c10, label='±10 ‰')
+
+ax2[1,0].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df2c15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax2[1,0].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax2[1,0].plot(Δ48arr, Δ47arr, 'ko')
+
+ax2[1,0].set_xlim(0.22, 0.33)
+ax2[1,0].set_ylim(0.54, 0.68)
+
+ax2[1,0].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax2[1,0].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax2[1,0].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax2[1,0].annotate(('C'), (0.225, 0.67), fontsize= 12)
+ax2[1,0].tick_params(axis='both', labelsize=12)
+
+# Make subplots for Figure 2D T 0°C & 40°C; Increasing (positive values) δ13C and decreasing (negative values) δ18O
+
+_5_2d = -5
+_10_2d = -10
+_15_2d = -15
+
+Δ_2d = 'T 0°C & 40°C'
+δ_2d = 'Increasing (positive values) δ13C and decreasing (negative values) δ18O'
+
+df2d00 = df[(df['Δ case'] == Δ_2d) & (df['δ case'] == δ_2d) & (df['endmember 2 δ18O (VPDB)'] == 0)]
+df2d05 = df[(df['Δ case'] == Δ_2d) & (df['δ case'] == δ_2d) & (df['endmember 2 δ18O (VPDB)'] == _5_2d)]
+df2d10 = df[(df['Δ case'] == Δ_2d) & (df['δ case'] == δ_2d) & (df['endmember 2 δ18O (VPDB)'] == _10_2d)]
+df2d15 = df[(df['Δ case'] == Δ_2d) & (df['δ case'] == δ_2d) & (df['endmember 2 δ18O (VPDB)'] == _15_2d)]
+
+# Polynomial fit to this case for temperature values based on Δ48.
+
+TΔ48_2d_0 = np.polyval(polynomial_TΔ48, df2d00['Δ48 model (CDES)'].max())
+TΔ48_2d_5 = np.polyval(polynomial_TΔ48, df2d05['Δ48 model (CDES)'].max())
+TΔ48_2d_10 = np.polyval(polynomial_TΔ48, df2d10['Δ48 model (CDES)'].max())
+TΔ48_2d_15 = np.polyval(polynomial_TΔ48, df2d15['Δ48 model (CDES)'].max())
+
+# Polynomial fit to this case for temperature values based on Δ47.
+
+TΔ47_2d_0 = np.polyval(polynomial_TΔ47, df2d00['Δ47 model (CDES)'].max())
+TΔ47_2d_5 = np.polyval(polynomial_TΔ47, df2d05['Δ47 model (CDES)'].max())
+TΔ47_2d_10 = np.polyval(polynomial_TΔ47, df2d10['Δ47 model (CDES)'].max())
+TΔ47_2d_15 = np.polyval(polynomial_TΔ47, df2d15['Δ47 model (CDES)'].min())
+
+ax2[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = [n*200 for n in endmember_1_contribution], marker = 'o', edgecolors = 'k', alpha = 0.5, data= df2d00, label='0 ‰')
+
+ax2[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'y', s = [n*200 for n in endmember_1_contribution], marker = '^', edgecolors = 'k', alpha = 0.5, data= df2d05, label='±5 ‰')
+
+ax2[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'r', s = [n*200 for n in endmember_1_contribution], marker = 'd', edgecolors = 'k', alpha = 0.5, data= df2d10, label='±10 ‰')
+
+ax2[1,1].scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'm', s = [n*200 for n in endmember_1_contribution], marker = 'h', edgecolors = 'k', alpha = 0.5, data= df2d15, label='±15 ‰')
+
+# Plot a the equilibrium relation between Δ48 and Δ47.
+
+ax2[1,1].plot(Δ48, Δ47, 'k-', label= 'Δ48-Δ47 eq')
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax2[1,1].plot(Δ48arr, Δ47arr, 'ko')
+
+ax2[1,1].set_xlim(0.22, 0.33)
+ax2[1,1].set_ylim(0.54, 0.68)
+ax2[1,1].yaxis.set_ticklabels([])
+
+ax2[1,1].annotate(('0°C'), (Δ48_CDES90(0) - 0.0145 , Δ47_CDES90(0) - 0.0045), fontsize = 12)
+ax2[1,1].annotate(('20°C'), (Δ48_CDES90(20) - 0.016 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax2[1,1].annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax2[1,1].annotate(('D'), (0.225, 0.67), fontsize= 12)
+ax2[1,1].tick_params(axis='both', labelsize=12)
+
+# Figure 3
+
+fig3, ax3 = plt.subplots(dpi=400, figsize=(7.466666,7))
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+ax3.plot(Δ48, Δ47, 'k-', label= 'Δ48–Δ47 eq')
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax3.plot(Δ48arr, Δ47arr, 'ko')
+
+ax3.annotate(('0°C'), (Δ48_CDES90(0) - 0.01 , Δ47_CDES90(0) - 0.004), fontsize = 12)
+ax3.annotate(('20°C'), (Δ48_CDES90(20) - 0.01 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax3.annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax3.scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = 200, marker = '^', edgecolors = 'k', alpha = 0.5, data= df2b15, label='±15 ‰')
+ax3.scatter('Δ48 model (CDES)', 'Δ47 model (CDES)', c = 'w', s = 200, marker = 'h', edgecolors = 'k', alpha = 0.5, data= df2d15, label='±15 ‰')
+
+# Drawing lines between points (x1, y1)–(x2, y2) and (x3, y3)–(x4, y4).
+
+int_1 = 5
+int_2 = 10
+
+x1 = [df2b15['Δ48 eq increments'].iloc[int_1], df2b15['Δ48 model (CDES)'].iloc[int_1]]
+y1 = [df2b15['Δ47 eq increments'].iloc[int_1], df2b15['Δ47 model (CDES)'].iloc[int_1]]
+
+x2 = [df2d15['Δ48 eq increments'].iloc[int_2], df2d15['Δ48 model (CDES)'].iloc[int_2]]
+y2 = [df2d15['Δ47 eq increments'].iloc[int_2], df2d15['Δ47 model (CDES)'].iloc[int_2]]
+
+plt.plot(x1, y1, color = 'olive')
+plt.plot(x1, (df2b15['Δ47 eq increments'].iloc[int_1], df2b15['Δ47 eq increments'].iloc[int_1]), color = 'olive', linestyle = '--')
+plt.plot((df2b15['Δ48 model (CDES)'].iloc[int_1], df2b15['Δ48 model (CDES)'].iloc[int_1]), y1, color = 'olive', linestyle = '--')
+
+plt.plot(x2, y2, color = 'slateblue')
+plt.plot(x2, (df2d15['Δ47 eq increments'].iloc[int_2], df2d15['Δ47 eq increments'].iloc[int_2]), color = 'slateblue', linestyle='--')
+plt.plot((df2d15['Δ48 model (CDES)'].iloc[int_2], df2d15['Δ48 model (CDES)'].iloc[int_2]), y2, color = 'slateblue', linestyle='--')
+
+ax3.set_xlabel(r'$Δ_{48 (CDES90)} (‰)$', size=20)
+ax3.set_ylabel(r'$Δ_{47 (CDES90)} (‰)$', size=20)
+ax3.tick_params(axis='both', labelsize=12)
+
+ax3.set_xlim(0.225, 0.335)
+ax3.set_ylim(0.54, 0.70)
+
+fig3.savefig('draft fig 3')
+
+# Figure 4
+
+fig4, ax4 = plt.subplots(dpi=400, figsize=(7.466666,7))
+
+# Plot points on the equilibrium curve, showing some temperatures.
+
+ax4.plot(Δ48, Δ47, 'k-', label= 'Δ48–Δ47 eq')
+
+arr = np.array([0, 20, 40])
+Δ48arr = Δ48_CDES90(arr)
+Δ47arr = Δ47_CDES90(arr)
+
+ax4.plot(Δ48arr, Δ47arr, 'ko')
+
+ax4.annotate(('0°C'), (Δ48_CDES90(0) - 0.01 , Δ47_CDES90(0) - 0.004), fontsize = 12)
+ax4.annotate(('20°C'), (Δ48_CDES90(20) - 0.01 , Δ47_CDES90(20)- 0.0045), fontsize = 12)
+ax4.annotate(('40°C'), (Δ48_CDES90(40) + 0.004 , Δ47_CDES90(40)), fontsize = 12)
+
+ax4.set_xlabel(r'$Δ_{48 (CDES90)} (‰)$', size=20)
+ax4.set_ylabel(r'$Δ_{47 (CDES90)} (‰)$', size=20)
+ax4.tick_params(axis='both', labelsize=12)
+
+ax4.set_xlim(0.225, 0.29)
+ax4.set_ylim(0.54, 0.68)
+
+# References
+
+# Bajnai, Guo, W., Spötl, C., Coplen, T. B., Methner, K., Löffler, N., Krsnik, E., Gischler, E., Hansen, M., Henkel, D., Price, G. D., Raddatz, J., Scholz, D., & Fiebig, J. (2020). Dual clumped isotope thermometry resolves kinetic biases in carbonate formation temperatures. Nature Communications, 11(1), 4005–4005. https://doi.org/10.1038/s41467-020-17501-0
+
+# Fiebig, Bajnai, D., Loeffler, N., Methner, K., Krsnik, E., Mulch, A., & Hofmann, S. (2019). Combined high-precision Delta (sub 48) and Delta (sub 47) analysis of carbonates. Chemical Geology, 522, 186–191. https://doi.org/10.1016/j.chemgeo.2019.05.019
+
+# Fiebig, Daeron, M., Bernecker, M., Guo, W., Schneider, G., Boch, R., Bernasconi, S. M., Jautzy, J., & Dietzel, M. (2021). Calibration of the dual clumped isotope thermometer for carbonates. Geochimica et Cosmochimica Acta, 312, 235–256. https://doi.org/10.1016/j.gca.2021.07.012
+
+# Henkes, Passey, B. H., Grossman, E. L., Shenton, B. J., Perez Huerta, A., & Yancey, T. E. (2014). Temperature limits for preservation of primary calcite clumped isotope paleotemperatures. Geochimica et Cosmochimica Acta, 139, 362–382. https://doi.org/10.1016/j.gca.2014.04.040
+
+# Merritt, D. A., & Hayes, J. M. (1994). Factors Controlling Precision and Accuracy in Isotope-Ratio-Monrtoring Mass Spectrometry. Analytical Chemistry (Washington), 66(14), 2336–2347. https://doi.org/10.1021/ac00086a020
